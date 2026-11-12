@@ -8,30 +8,32 @@ pipeline {
 
     stages {
 
-        stage('checkout') {
+        stage('Checkout') {
             steps {
-                echo 'Cloning GITHUB Repo'
+                echo 'Cloning GitHub Repository'
 
                 git branch: 'main',
                     url: 'https://github.com/Katuboinavasu/Jenkins_With_Devops_Project.git'
             }
         }
-		
-		
-		
-	 stage('sonar') {
+
+        stage('SonarQube Analysis') {
             steps {
-                echo 'scanning project'
-                sh 'ls -ltr'
-                
-                sh ''' mvn sonar:sonar \\
-                      -Dsonar.host.url=http://44.210.116.12:9000 \\
-                      -Dsonar.login=squ_a46b6947d43a812180415ff94219120d2ddebcea'''
+                echo 'Scanning project'
+
+                withCredentials([string(
+                    credentialsId: 'sonar-token',
+                    variable: 'SONAR_TOKEN'
+                )]) {
+                    sh '''
+                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar \
+                        -Dsonar.host.url=http://3.226.245.1:9000 \
+                        -Dsonar.token=$SONAR_TOKEN
+                    '''
+                }
             }
-    	}
-		
-		
-		
+        }
+
         stage('Build Artifact') {
             steps {
                 echo 'Building Artifact'
@@ -41,13 +43,13 @@ pipeline {
 
         stage('Docker Image') {
             steps {
-                echo 'Docker Image building'
+                echo 'Building Docker Image'
 
                 sh 'docker build -t vasukatuboina/devops:${BUILD_NUMBER} .'
             }
         }
 
-        stage('Push to Dockerhub') {
+        stage('Push to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub',
@@ -67,7 +69,6 @@ pipeline {
         }
 
         stage('Update Deployment File') {
-
             environment {
                 GIT_REPO_NAME = 'Jenkins_With_Devops_Project'
                 GIT_USER_NAME = 'Katuboinavasu'
