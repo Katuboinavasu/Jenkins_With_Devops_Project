@@ -1,100 +1,102 @@
+
 pipeline {
     agent any
 
-
-       tools {
+    tools {
         maven 'maven3'
     }
 
     stages {
-      stage('checkout') {
-            steps {
-                echo 'Cloning GIT HUB Repo '
-				git branch: 'main', url: 'https://github.com/Katuboinavasu/Jenkins_With_Devops_Project.git'
 
-            }  
-        }
-		
-		
-		
-	 stage('sonar') {
+        stage('checkout') {
             steps {
-                echo 'scanning project'
-                sh 'ls -ltr'
-                
-                sh ''' mvn sonar:sonar \\
-                      -Dsonar.host.url=http://3.226.245.1:9000 \\
-                      -Dsonar.login=squ_9d4bb0a3744805d5283b5cc99c5a037aae8d90a9'''
+                echo 'Cloning GITHUB Repo'
+
+                git branch: 'main',
+                    url: 'https://github.com/Katuboinavasu/Jenkins_With_Devops_Project.git'
             }
-    	}
-		
-		
-		
+        }
+
+        stage('sonar') {
+            steps {
+                echo 'Scanning project'
+                sh 'ls -ltr'
+
+                withCredentials([string(
+                    credentialsId: 'sonar-token',
+                    variable: 'SONAR_TOKEN'
+                )]) {
+                    sh '''
+                        mvn sonar:sonar \
+                        -Dsonar.host.url=http://3.226.245.1:9000 \
+                        -Dsonar.token=$SONAR_TOKEN
+                    '''
+                }
+            }
+        }
+
         stage('Build Artifact') {
             steps {
-                echo 'Build Artifact'
-				sh 'mvn clean package'
+                echo 'Building Artifact'
+                sh 'mvn clean package'
             }
         }
-		
-		
-		
+
         stage('Docker Image') {
             steps {
                 echo 'Docker Image building'
-				sh 'docker build -t vasukatuboina/batch13:${BUILD_NUMBER} .'
-            }
-        }
-		
-		
-       stage('Push to Dockerhub') {
-            steps {
-			 script {
-			withCredentials([string(credentialsId: 'dockerhub', variable: 'dockerhub')]) 
-			{
-            sh 'docker login -u vasukatuboina -p ${dockerhub}'
-			
-			 }
-			   sh 'docker push vasukatuboina/batch13:${BUILD_NUMBER}'
-			   
-           
-				}
-				
-            }
-        }
-		
-		
-    stage('Update Deployment File') {
-		
-		 environment {
-            GIT_REPO_NAME = "
-Jenkins_With_Devops_Project"
-            GIT_USER_NAME = "Katuboinavasu"
-        }
-		
-            steps {
-                echo 'Update Deployment File'
-				withCredentials([string(credentialsId: 'githubtoken', variable: 'githubtoken')]) 
-				{
-                  sh '''
-                    git config user.email "kvasu97015@gmail.com"
-                    git config user.name "Vasu"
-                    BUILD_NUMBER=${BUILD_NUMBER}
-                    sed -i "s/batch13:.*/batch13:${BUILD_NUMBER}/g" deploymentfiles/deployment.yml
-                    git add .
-                    
-                    git commit -m "Update deployment image to version ${BUILD_NUMBER}"
 
-                    git push https://${githubtoken}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
-                '''
-				  
-                 }
-				
+                sh 'docker build -t vasukatuboina/devops:${BUILD_NUMBER} .'
             }
         }
-		
-		
-			
+
+        stage('Push to Dockerhub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login \
+                        -u "$DOCKER_USER" --password-stdin
+
+                        docker push vasukatuboina/devops:${BUILD_NUMBER}
+
+                        docker logout
+                    '''
+                }
+            }
+        }
+
+        stage('Update Deployment File') {
+
+            environment {
+                GIT_REPO_NAME = 'Jenkins_With_Devops_Project'
+                GIT_USER_NAME = 'Katuboinavasu'
+            }
+
+            steps {
+                echo 'Updating Deployment File'
+
+                withCredentials([string(
+                    credentialsId: 'githubtoken',
+                    variable: 'GITHUB_TOKEN'
+                )]) {
+                    sh '''
+                        git config user.email "kvasu97015@gmail.com"
+                        git config user.name "Vasu"
+
+                        sed -i "s|image:.*|image: vasukatuboina/devops:${BUILD_NUMBER}|g" deploymentfiles/deployment.yml
+
+                        git add deploymentfiles/deployment.yml
+
+                        git commit -m "Update deployment image to version ${BUILD_NUMBER}"
+
+                        git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME}.git HEAD:main
+                    '''
+                }
+            }
+        }
     }
-
 }
