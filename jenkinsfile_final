@@ -15,19 +15,17 @@ pipeline {
         }
 		
 		
-		
-	 stage('sonar') {
-            steps {
-                echo 'scanning project'
-                sh 'ls -ltr'
-                
-                sh ''' mvn sonar:sonar \\
-                      -Dsonar.host.url=http://44.210.116.12:9000 \\
-                      -Dsonar.login=squ_a46b6947d43a812180415ff94219120d2ddebcea'''
-            }
-    	}
-		
-		
+	stage('sonar') {
+    steps {
+        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+            sh '''
+                mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar \
+                -Dsonar.host.url=http://3.226.245.1:9000 \
+                -Dsonar.token=$SONAR_TOKEN
+            '''
+        }
+    }
+}
 		
         stage('Build Artifact') {
             steps {
